@@ -99,7 +99,7 @@ export default function MotorolaReviewsDashboard() {
 
       const enhancedReviews = data.reviews.map((review: any) => ({
         ...review,
-        createdAt: new Date().toISOString(),
+        createdAt: review.createdAt || new Date().toISOString(),
         isQuestion: detectQuestion(review.title, review.summary),
       }))
 
@@ -138,18 +138,62 @@ export default function MotorolaReviewsDashboard() {
     let filtered = activeCategory === "All" ? reviews : reviews.filter((review) => review.category === activeCategory)
 
     if (activeFilter !== "Today") {
-      const filterDate = new Date(selectedDate)
+      const today = new Date()
+      today.setHours(23, 59, 59, 999) // End of today
+
+      let startDate = new Date(selectedDate)
+      startDate.setHours(0, 0, 0, 0) // Start of selected date
+
       if (activeFilter === "Yesterday") {
-        filterDate.setDate(filterDate.getDate() - 1)
+        startDate = new Date(today)
+        startDate.setDate(startDate.getDate() - 1)
+        startDate.setHours(0, 0, 0, 0)
+        const endDate = new Date(startDate)
+        endDate.setHours(23, 59, 59, 999)
+
+        filtered = filtered.filter((review) => {
+          const reviewDate = new Date(review.createdAt)
+          return reviewDate >= startDate && reviewDate <= endDate
+        })
       } else if (activeFilter === "Last 7 Days") {
-        filterDate.setDate(filterDate.getDate() - 7)
+        startDate = new Date(today)
+        startDate.setDate(startDate.getDate() - 7)
+        startDate.setHours(0, 0, 0, 0)
+
+        filtered = filtered.filter((review) => {
+          const reviewDate = new Date(review.createdAt)
+          return reviewDate >= startDate && reviewDate <= today
+        })
       } else if (activeFilter === "This Month") {
-        filterDate.setDate(filterDate.getDate() - 30)
+        startDate = new Date(today)
+        startDate.setDate(startDate.getDate() - 30)
+        startDate.setHours(0, 0, 0, 0)
+
+        filtered = filtered.filter((review) => {
+          const reviewDate = new Date(review.createdAt)
+          return reviewDate >= startDate && reviewDate <= today
+        })
+      } else {
+        // Custom date selection
+        const endDate = new Date(selectedDate)
+        endDate.setHours(23, 59, 59, 999)
+
+        filtered = filtered.filter((review) => {
+          const reviewDate = new Date(review.createdAt)
+          return reviewDate >= startDate && reviewDate <= endDate
+        })
       }
+    } else {
+      // Today filter
+      const today = new Date()
+      const startOfToday = new Date(today)
+      startOfToday.setHours(0, 0, 0, 0)
+      const endOfToday = new Date(today)
+      endOfToday.setHours(23, 59, 59, 999)
 
       filtered = filtered.filter((review) => {
         const reviewDate = new Date(review.createdAt)
-        return reviewDate >= filterDate
+        return reviewDate >= startOfToday && reviewDate <= endOfToday
       })
     }
 
@@ -158,9 +202,13 @@ export default function MotorolaReviewsDashboard() {
 
   const handleQuickFilter = (filter: string, days: number) => {
     setActiveFilter(filter)
-    const newDate = new Date()
-    newDate.setDate(newDate.getDate() - days)
-    setSelectedDate(newDate)
+    if (filter === "Today" || filter === "Yesterday" || filter === "Last 7 Days" || filter === "This Month") {
+      // Keep current selectedDate for display purposes
+    } else {
+      const newDate = new Date()
+      newDate.setDate(newDate.getDate() - days)
+      setSelectedDate(newDate)
+    }
   }
 
   useEffect(() => {

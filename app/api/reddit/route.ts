@@ -163,6 +163,7 @@ export async function GET() {
       upvotes: post.ups,
       comments: post.num_comments,
       redditUrl: `https://reddit.com${post.permalink}`,
+      createdAt: new Date(post.created_utc * 1000).toISOString(),
     }))
 
     console.log("[v0] Processed reviews with sentiment analysis")
