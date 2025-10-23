@@ -19,8 +19,27 @@ interface RedditResponse {
   }
 }
 
-// Simple sentiment analysis based on keywords
-function analyzeSentiment(title: string, text: string): "positive" | "neutral" | "negative" {
+function categorizePost(title: string, text: string, subreddit: string): string {
+  const content = (title + " " + text).toLowerCase()
+
+  // More specific matching patterns
+  if (content.match(/moto\s*g\d+|motog\d+|moto g series/i)) return "Moto G Series"
+  if (content.match(/edge\s*\d+|moto edge|motorola edge/i)) return "Moto Edge Series"
+  if (content.match(/razr|flip|foldable/i)) return "Moto Razr/Foldable"
+  if (content.match(/buds|headphone|earbuds|audio|speaker/i)) return "Audio Products"
+  if (content.match(/smart home|hub|monitor/i)) return "Smart Home"
+  if (content.match(/charger|case|accessory|screen protector/i)) return "Accessories"
+  if (content.match(/battery|charging|power/i)) return "Battery/Charging"
+  if (content.match(/camera|photo|video/i)) return "Camera"
+  if (content.match(/software|update|android|ui/i)) return "Software/Updates"
+
+  return "General"
+}
+
+function simpleAnalyzeSentiment(
+  title: string,
+  text: string,
+): { sentiment: "positive" | "neutral" | "negative"; confidence: number; reasoning: string } {
   const content = (title + " " + text).toLowerCase()
 
   const positiveWords = [
@@ -38,6 +57,12 @@ function analyzeSentiment(title: string, text: string): "positive" | "neutral" |
     "solid",
     "happy",
     "satisfied",
+    "beautiful",
+    "smooth",
+    "fast",
+    "reliable",
+    "worth",
+    "upgrade",
   ]
   const negativeWords = [
     "terrible",
@@ -54,27 +79,44 @@ function analyzeSentiment(title: string, text: string): "positive" | "neutral" |
     "useless",
     "garbage",
     "overheating",
+    "slow",
+    "lag",
+    "crash",
+    "buggy",
+    "defect",
+    "regret",
   ]
 
   const positiveCount = positiveWords.filter((word) => content.includes(word)).length
   const negativeCount = negativeWords.filter((word) => content.includes(word)).length
 
-  if (positiveCount > negativeCount) return "positive"
-  if (negativeCount > positiveCount) return "negative"
-  return "neutral"
+  // Calculate confidence based on keyword density
+  const totalWords = content.split(/\s+/).length
+  const sentimentWords = positiveCount + negativeCount
+  const confidence = Math.min(Math.round((sentimentWords / Math.max(totalWords / 10, 1)) * 100), 95)
+
+  let sentiment: "positive" | "neutral" | "negative"
+  let reasoning: string
+
+  if (positiveCount > negativeCount + 1) {
+    sentiment = "positive"
+    reasoning = `Found ${positiveCount} positive indicators`
+  } else if (negativeCount > positiveCount + 1) {
+    sentiment = "negative"
+    reasoning = `Found ${negativeCount} negative indicators`
+  } else {
+    sentiment = "neutral"
+    reasoning = "Mixed or neutral sentiment indicators"
+  }
+
+  return { sentiment, confidence: Math.max(confidence, 40), reasoning }
 }
 
-// Categorize posts based on content
-function categorizePost(title: string, text: string, subreddit: string): string {
-  const content = (title + " " + text).toLowerCase()
-
-  if (content.includes("moto g") || content.includes("motog")) return "Moto G Series"
-  if (content.includes("edge") || content.includes("moto edge")) return "Moto Edge Series"
-  if (content.includes("buds") || content.includes("headphone") || content.includes("audio")) return "Motorola Audio"
-  if (content.includes("smart home") || content.includes("hub")) return "Smart Home"
-  if (content.includes("charger") || content.includes("case") || content.includes("accessory")) return "Accessories"
-
-  return "General"
+async function analyzeSentiment(
+  title: string,
+  text: string,
+): Promise<{ sentiment: "positive" | "neutral" | "negative"; confidence: number; reasoning: string }> {
+  return simpleAnalyzeSentiment(title, text)
 }
 
 async function getRedditAccessToken(): Promise<string> {
@@ -106,20 +148,37 @@ async function getRedditAccessToken(): Promise<string> {
 }
 
 async function fetchRedditPosts(accessToken: string): Promise<RedditPost[]> {
-  const subreddits = ["motorola", "MotoG", "Android", "smartphones"]
-  const queries = ["motorola", "moto g", "moto edge", "motorola phone"]
-
+  const primarySubreddit = "motorola"
+  const secondarySubreddits = ["MotoG", "Android", "smartphones", "Lenovo"]
   const allPosts: RedditPost[] = []
 
-  // Fetch from multiple subreddits
-  for (const subreddit of subreddits) {
+  // Fetch more posts from primary r/motorola subreddit
+  try {
+    const response = await fetch(`https://oauth.reddit.com/r/${primarySubreddit}/hot?limit=50&t=month`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "User-Agent": "LenovoReviewsTracker/1.0",
+      },
+    })
+
+    if (response.ok) {
+      const data: RedditResponse = await response.json()
+      allPosts.push(...data.data.children.map((child) => child.data))
+      console.log(`[v0] Fetched ${data.data.children.length} posts from r/${primarySubreddit}`)
+    }
+  } catch (error) {
+    console.error(`[v0] Error fetching from r/${primarySubreddit}:`, error)
+  }
+
+  // Fetch from secondary subreddits with search
+  for (const subreddit of secondarySubreddits) {
     try {
       const response = await fetch(
-        `https://oauth.reddit.com/r/${subreddit}/search?q=motorola&sort=hot&limit=25&t=month`,
+        `https://oauth.reddit.com/r/${subreddit}/search?q=motorola OR lenovo OR "moto g" OR "moto edge"&sort=hot&limit=15&t=month`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            "User-Agent": "MotorolaReviewsTracker/1.0",
+            "User-Agent": "LenovoReviewsTracker/1.0",
           },
         },
       )
@@ -129,44 +188,70 @@ async function fetchRedditPosts(accessToken: string): Promise<RedditPost[]> {
         allPosts.push(...data.data.children.map((child) => child.data))
       }
     } catch (error) {
-      console.error(`Error fetching from r/${subreddit}:`, error)
+      console.error(`[v0] Error fetching from r/${subreddit}:`, error)
     }
   }
 
   // Remove duplicates and filter relevant posts
-  const uniquePosts = allPosts.filter(
-    (post, index, self) =>
-      (index === self.findIndex((p) => p.id === post.id) && post.title.toLowerCase().includes("motorola")) ||
-      post.title.toLowerCase().includes("moto") ||
-      post.selftext.toLowerCase().includes("motorola"),
+  const uniquePosts = Array.from(
+    new Map(
+      allPosts
+        .filter((post) => {
+          const content = (post.title + " " + post.selftext).toLowerCase()
+          if (post.subreddit.toLowerCase() === "motorola") return true
+          return (
+            content.includes("motorola") ||
+            content.includes("moto") ||
+            content.includes("lenovo") ||
+            content.match(/moto\s*g|edge|razr/i)
+          )
+        })
+        .map((post) => [post.id, post]),
+    ).values(),
   )
 
-  return uniquePosts.slice(0, 20) // Limit to 20 most relevant posts
+  return uniquePosts
+    .sort((a, b) => {
+      // Give r/motorola posts priority
+      if (a.subreddit.toLowerCase() === "motorola" && b.subreddit.toLowerCase() !== "motorola") return -1
+      if (b.subreddit.toLowerCase() === "motorola" && a.subreddit.toLowerCase() !== "motorola") return 1
+      // Then sort by engagement
+      return b.ups + b.num_comments - (a.ups + a.num_comments)
+    })
+    .slice(0, 25)
 }
 
 export async function GET() {
   try {
-    console.log("[v0] Starting Reddit API fetch...")
-
     const accessToken = await getRedditAccessToken()
-    console.log("[v0] Got Reddit access token")
 
     const posts = await fetchRedditPosts(accessToken)
     console.log(`[v0] Fetched ${posts.length} posts from Reddit`)
 
-    const reviews = posts.map((post, index) => ({
-      id: index + 1,
-      title: post.title,
-      summary: post.selftext ? post.selftext.substring(0, 200) + "..." : "No description available",
-      category: categorizePost(post.title, post.selftext, post.subreddit),
-      sentiment: analyzeSentiment(post.title, post.selftext),
-      upvotes: post.ups,
-      comments: post.num_comments,
-      redditUrl: `https://reddit.com${post.permalink}`,
-      createdAt: new Date(post.created_utc * 1000).toISOString(),
-    }))
+    const reviews = await Promise.all(
+      posts.map(async (post, index) => {
+        const sentimentAnalysis = await analyzeSentiment(post.title, post.selftext)
 
-    console.log("[v0] Processed reviews with sentiment analysis")
+        return {
+          id: index + 1,
+          title: post.title,
+          summary: post.selftext
+            ? post.selftext.substring(0, 250).trim() + (post.selftext.length > 250 ? "..." : "")
+            : "No description available",
+          category: categorizePost(post.title, post.selftext, post.subreddit),
+          sentiment: sentimentAnalysis.sentiment,
+          confidence: sentimentAnalysis.confidence,
+          reasoning: sentimentAnalysis.reasoning,
+          upvotes: post.ups,
+          comments: post.num_comments,
+          redditUrl: `https://reddit.com${post.permalink}`,
+          createdAt: new Date(post.created_utc * 1000).toISOString(),
+          subreddit: post.subreddit,
+        }
+      }),
+    )
+
+    console.log(`[v0] Processed ${reviews.length} reviews with keyword-based sentiment analysis`)
 
     return NextResponse.json({ reviews })
   } catch (error) {
