@@ -371,6 +371,83 @@ export default function LenovoReviewsDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-10">
+        <section className="space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-bold text-foreground tracking-tight">Live Metrics</h2>
+            <p className="text-muted-foreground">{getMetricsLabel()}</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="border-2 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-blue-50 rounded-xl">
+                    <TrendingUp className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-0">
+                    New
+                  </Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-4xl font-bold text-foreground">{liveMetrics.newReviews}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Reviews</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-green-50 rounded-xl">
+                    <ThumbsUp className="w-6 h-6 text-green-600" />
+                  </div>
+                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-0">
+                    Positive
+                  </Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-4xl font-bold text-foreground">{liveMetrics.positiveReviews}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Positive Sentiment</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-primary/20 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-red-50 rounded-xl">
+                    <ThumbsDown className="w-6 h-6 text-primary" />
+                  </div>
+                  <Badge variant="secondary" className="bg-red-50 text-primary border-0">
+                    Negative
+                  </Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-4xl font-bold text-foreground">{liveMetrics.negativeReviews}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Negative Sentiment</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 bg-orange-50 rounded-xl">
+                    <HelpCircle className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <Badge variant="secondary" className="bg-orange-50 text-orange-700 border-0">
+                    Action
+                  </Badge>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-4xl font-bold text-foreground">{liveMetrics.unansweredQuestions}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Questions Detected</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
         {actionableReviews.length > 0 && (
           <section className="space-y-6">
             <div className="flex items-center justify-between">
@@ -529,83 +606,6 @@ export default function LenovoReviewsDashboard() {
             )}
           </section>
         )}
-
-        <section className="space-y-6">
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-foreground tracking-tight">Live Metrics</h2>
-            <p className="text-muted-foreground">{getMetricsLabel()}</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-2 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-3 bg-blue-50 rounded-xl">
-                    <TrendingUp className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-0">
-                    New
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-4xl font-bold text-foreground">{liveMetrics.newReviews}</p>
-                  <p className="text-sm font-medium text-muted-foreground">Total Reviews</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-3 bg-green-50 rounded-xl">
-                    <ThumbsUp className="w-6 h-6 text-green-600" />
-                  </div>
-                  <Badge variant="secondary" className="bg-green-50 text-green-700 border-0">
-                    Positive
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-4xl font-bold text-foreground">{liveMetrics.positiveReviews}</p>
-                  <p className="text-sm font-medium text-muted-foreground">Positive Sentiment</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 border-primary/20 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-3 bg-red-50 rounded-xl">
-                    <ThumbsDown className="w-6 h-6 text-primary" />
-                  </div>
-                  <Badge variant="secondary" className="bg-red-50 text-primary border-0">
-                    Negative
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-4xl font-bold text-foreground">{liveMetrics.negativeReviews}</p>
-                  <p className="text-sm font-medium text-muted-foreground">Negative Sentiment</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-3 bg-orange-50 rounded-xl">
-                    <HelpCircle className="w-6 h-6 text-orange-600" />
-                  </div>
-                  <Badge variant="secondary" className="bg-orange-50 text-orange-700 border-0">
-                    Action
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-4xl font-bold text-foreground">{liveMetrics.unansweredQuestions}</p>
-                  <p className="text-sm font-medium text-muted-foreground">Questions Detected</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
 
         <section className="space-y-6">
           <div className="flex items-center justify-between">
