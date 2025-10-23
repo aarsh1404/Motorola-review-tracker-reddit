@@ -16,8 +16,14 @@ import {
   ThumbsDown,
   HelpCircle,
   CalendarIcon,
+  Clock,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
-import { format } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
 
 type Sentiment = "positive" | "neutral" | "negative"
 type Category =
@@ -33,7 +39,7 @@ interface Review {
   id: number
   title: string
   summary: string
-  category: Category
+  category: string
   sentiment: Sentiment
   upvotes: number
   comments: number
@@ -66,13 +72,20 @@ const quickFilters = [
   { label: "This Month", days: 30 },
 ]
 
+const REVIEWS_PER_PAGE = 51
+const ACTIONABLE_PER_PAGE = 6 // Added constant for actionable items per page
+
 export default function LenovoReviewsDashboard() {
-  const [activeCategory, setActiveCategory] = useState<Category>("All")
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [activeFilter, setActiveFilter] = useState<string>("Today")
+  const [sortBy, setSortBy] = useState<"date" | "sentiment">("date")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [isActionableOpen, setIsActionableOpen] = useState(true) // Added state for toggle
+  const [actionablePage, setActionablePage] = useState(1) // Added state for actionable pagination
 
   const fetchReviews = async () => {
     try {
@@ -115,55 +128,12 @@ export default function LenovoReviewsDashboard() {
   }
 
   const getFilteredReviews = () => {
-    let filtered = activeCategory === "All" ? reviews : reviews.filter((review) => review.category === activeCategory)
+    let filtered = reviews
 
-    if (activeFilter !== "Today") {
-      const today = new Date()
-      today.setHours(23, 59, 59, 999)
+    const today = new Date()
+    today.setHours(23, 59, 59, 999)
 
-      let startDate = new Date(selectedDate)
-      startDate.setHours(0, 0, 0, 0)
-
-      if (activeFilter === "Yesterday") {
-        startDate = new Date(today)
-        startDate.setDate(startDate.getDate() - 1)
-        startDate.setHours(0, 0, 0, 0)
-        const endDate = new Date(startDate)
-        endDate.setHours(23, 59, 59, 999)
-
-        filtered = filtered.filter((review) => {
-          const reviewDate = new Date(review.createdAt)
-          return reviewDate >= startDate && reviewDate <= endDate
-        })
-      } else if (activeFilter === "Last 7 Days") {
-        startDate = new Date(today)
-        startDate.setDate(startDate.getDate() - 7)
-        startDate.setHours(0, 0, 0, 0)
-
-        filtered = filtered.filter((review) => {
-          const reviewDate = new Date(review.createdAt)
-          return reviewDate >= startDate && reviewDate <= today
-        })
-      } else if (activeFilter === "This Month") {
-        startDate = new Date(today)
-        startDate.setDate(startDate.getDate() - 30)
-        startDate.setHours(0, 0, 0, 0)
-
-        filtered = filtered.filter((review) => {
-          const reviewDate = new Date(review.createdAt)
-          return reviewDate >= startDate && reviewDate <= today
-        })
-      } else {
-        const endDate = new Date(selectedDate)
-        endDate.setHours(23, 59, 59, 999)
-
-        filtered = filtered.filter((review) => {
-          const reviewDate = new Date(review.createdAt)
-          return reviewDate >= startDate && reviewDate <= endDate
-        })
-      }
-    } else {
-      const today = new Date()
+    if (activeFilter === "Today") {
       const startOfToday = new Date(today)
       startOfToday.setHours(0, 0, 0, 0)
       const endOfToday = new Date(today)
@@ -173,9 +143,61 @@ export default function LenovoReviewsDashboard() {
         const reviewDate = new Date(review.createdAt)
         return reviewDate >= startOfToday && reviewDate <= endOfToday
       })
+    } else if (activeFilter === "Yesterday") {
+      const startDate = new Date(today)
+      startDate.setDate(startDate.getDate() - 1)
+      startDate.setHours(0, 0, 0, 0)
+      const endDate = new Date(startDate)
+      endDate.setHours(23, 59, 59, 999)
+
+      filtered = filtered.filter((review) => {
+        const reviewDate = new Date(review.createdAt)
+        return reviewDate >= startDate && reviewDate <= endDate
+      })
+    } else if (activeFilter === "Last 7 Days") {
+      const startDate = new Date(today)
+      startDate.setDate(startDate.getDate() - 7)
+      startDate.setHours(0, 0, 0, 0)
+
+      filtered = filtered.filter((review) => {
+        const reviewDate = new Date(review.createdAt)
+        return reviewDate >= startDate && reviewDate <= today
+      })
+    } else if (activeFilter === "This Month") {
+      const startDate = new Date(today)
+      startDate.setDate(startDate.getDate() - 30)
+      startDate.setHours(0, 0, 0, 0)
+
+      filtered = filtered.filter((review) => {
+        const reviewDate = new Date(review.createdAt)
+        return reviewDate >= startDate && reviewDate <= today
+      })
+    } else {
+      const startDate = new Date(selectedDate)
+      startDate.setHours(0, 0, 0, 0)
+      const endDate = new Date(selectedDate)
+      endDate.setHours(23, 59, 59, 999)
+
+      filtered = filtered.filter((review) => {
+        const reviewDate = new Date(review.createdAt)
+        return reviewDate >= startDate && reviewDate <= endDate
+      })
     }
 
-    return filtered
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "date") {
+        const dateA = new Date(a.createdAt).getTime()
+        const dateB = new Date(b.createdAt).getTime()
+        return sortOrder === "asc" ? dateA - dateB : dateB - dateA
+      } else {
+        const sentimentOrder = { negative: 0, neutral: 1, positive: 2 }
+        const sentimentA = sentimentOrder[a.sentiment]
+        const sentimentB = sentimentOrder[b.sentiment]
+        return sortOrder === "asc" ? sentimentB - sentimentA : sentimentA - sentimentB
+      }
+    })
+
+    return sorted
   }
 
   const calculateMetricsFromFiltered = (filteredReviews: Review[]) => {
@@ -198,20 +220,44 @@ export default function LenovoReviewsDashboard() {
       case "This Month":
         return "Last 30 days activity"
       default:
-        return format(selectedDate, "MMMM d, yyyy")
+        return `Activity for ${format(selectedDate, "MMMM d, yyyy")}`
     }
   }
 
   const handleQuickFilter = (filter: string, days: number) => {
     setActiveFilter(filter)
-    if (filter === "Today" || filter === "Yesterday" || filter === "Last 7 Days" || filter === "This Month") {
-      // Keep current selectedDate for display purposes
-    } else {
-      const newDate = new Date()
-      newDate.setDate(newDate.getDate() - days)
-      setSelectedDate(newDate)
+    setCurrentPage(1)
+    setActionablePage(1) // Reset actionable page when filter changes
+    if (filter === "Today") {
+      setSelectedDate(new Date())
+    } else if (filter === "Yesterday") {
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      setSelectedDate(yesterday)
+    } else if (filter === "Last 7 Days") {
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      setSelectedDate(sevenDaysAgo)
+    } else if (filter === "This Month") {
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      setSelectedDate(thirtyDaysAgo)
     }
   }
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setSelectedDate(date)
+      setActiveFilter("Custom")
+      setCurrentPage(1)
+      setActionablePage(1) // Reset actionable page when date changes
+    }
+  }
+
+  useEffect(() => {
+    setCurrentPage(1)
+    setActionablePage(1) // Reset actionable page when sort criteria change
+  }, [sortBy, sortOrder])
 
   useEffect(() => {
     fetchReviews()
@@ -223,12 +269,10 @@ export default function LenovoReviewsDashboard() {
   const actionableReviews = filteredReviews
     .filter((review) => review.isQuestion || review.sentiment === "negative")
     .sort((a, b) => {
-      // Prioritize: questions with negative sentiment > questions > negative reviews
       const scoreA = (a.isQuestion ? 2 : 0) + (a.sentiment === "negative" ? 1 : 0)
       const scoreB = (b.isQuestion ? 2 : 0) + (b.sentiment === "negative" ? 1 : 0)
       return scoreB - scoreA
     })
-    .slice(0, 3) // Show top 3 actionable items
 
   const getSentimentStyles = (sentiment: Sentiment) => {
     switch (sentiment) {
@@ -240,6 +284,29 @@ export default function LenovoReviewsDashboard() {
         return "bg-[var(--color-negative)] border-[var(--color-negative-border)]"
     }
   }
+
+  const formatPostDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+    if (diffInHours < 24) {
+      return formatDistanceToNow(date, { addSuffix: true })
+    }
+    return format(date, "MMM d, yyyy")
+  }
+
+  const totalPages = Math.ceil(filteredReviews.length / REVIEWS_PER_PAGE)
+  const startIndex = (currentPage - 1) * REVIEWS_PER_PAGE
+  const endIndex = startIndex + REVIEWS_PER_PAGE
+  const paginatedReviews = filteredReviews.slice(startIndex, endIndex)
+  const showPagination = filteredReviews.length > REVIEWS_PER_PAGE
+
+  const totalActionablePages = Math.ceil(actionableReviews.length / ACTIONABLE_PER_PAGE)
+  const actionableStartIndex = (actionablePage - 1) * ACTIONABLE_PER_PAGE
+  const actionableEndIndex = actionableStartIndex + ACTIONABLE_PER_PAGE
+  const paginatedActionableReviews = actionableReviews.slice(actionableStartIndex, actionableEndIndex)
+  const showActionablePagination = actionableReviews.length > ACTIONABLE_PER_PAGE
 
   if (loading) {
     return (
@@ -259,7 +326,7 @@ export default function LenovoReviewsDashboard() {
           <p className="text-destructive font-medium">Error loading reviews</p>
           <p className="text-muted-foreground text-sm">{error}</p>
           <Button onClick={fetchReviews} variant="outline" size="lg" className="mt-4 gap-2 bg-transparent">
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             Try Again
           </Button>
           <div className="mt-6 p-4 bg-muted rounded-lg text-left">
@@ -289,8 +356,14 @@ export default function LenovoReviewsDashboard() {
                 <p className="text-sm text-muted-foreground font-medium">Reviews Analytics Dashboard</p>
               </div>
             </div>
-            <Button onClick={fetchReviews} variant="outline" size="lg" className="gap-2 bg-transparent">
-              <RefreshCw className="w-4 h-4" />
+            <Button
+              onClick={() => fetchReviews()}
+              variant="outline"
+              size="lg"
+              className="gap-2 bg-transparent"
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
@@ -301,91 +374,159 @@ export default function LenovoReviewsDashboard() {
         {actionableReviews.length > 0 && (
           <section className="space-y-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-3">
+              <button
+                onClick={() => setIsActionableOpen(!isActionableOpen)}
+                className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+              >
+                <div className="flex items-center gap-3">
                   <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                  Actionable Feedback
-                </h2>
-                <p className="text-muted-foreground mt-1">Reviews requiring immediate attention</p>
-              </div>
+                  <h2 className="text-2xl font-bold text-foreground tracking-tight">Actionable Feedback</h2>
+                  {isActionableOpen ? (
+                    <ChevronUp className="w-6 h-6 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-6 h-6 text-muted-foreground" />
+                  )}
+                </div>
+              </button>
               <Badge variant="destructive" className="text-base px-4 py-2 font-bold">
                 {actionableReviews.length} {actionableReviews.length === 1 ? "Item" : "Items"}
               </Badge>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {actionableReviews.map((review) => (
-                <Card
-                  key={review.id}
-                  className="border-2 border-primary/30 bg-gradient-to-br from-card to-primary/5 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:border-primary/50"
-                >
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start gap-3 mb-3">
-                      {review.isQuestion && review.sentiment === "negative" ? (
-                        <div className="p-2 bg-primary/10 rounded-lg shrink-0">
-                          <HelpCircle className="w-5 h-5 text-primary" />
-                        </div>
-                      ) : review.isQuestion ? (
-                        <div className="p-2 bg-orange-100 rounded-lg shrink-0">
-                          <HelpCircle className="w-5 h-5 text-orange-600" />
-                        </div>
-                      ) : (
-                        <div className="p-2 bg-red-100 rounded-lg shrink-0">
-                          <ThumbsDown className="w-5 h-5 text-primary" />
-                        </div>
-                      )}
-                      <div className="flex flex-col gap-2 flex-1 min-w-0">
-                        <div className="flex flex-wrap gap-2">
-                          {review.isQuestion && (
-                            <Badge className="text-xs bg-orange-100 text-orange-800 border-orange-300 font-semibold">
-                              Question
-                            </Badge>
-                          )}
-                          {review.sentiment === "negative" && (
-                            <Badge className="text-xs bg-red-100 text-primary border-primary/30 font-semibold">
-                              Negative
-                            </Badge>
-                          )}
-                          <Badge variant="secondary" className="text-xs font-semibold">
-                            {review.category}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    <CardTitle className="text-base font-bold text-foreground leading-tight line-clamp-2">
-                      {review.title}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">{review.summary}</p>
+            {isActionableOpen && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                <p className="text-muted-foreground">Reviews requiring immediate attention</p>
 
-                    <div className="flex items-center justify-between pt-3 border-t">
-                      <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <ArrowUp className="w-4 h-4" />
-                          <span>{review.upvotes}</span>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {paginatedActionableReviews.map((review) => (
+                    <Card
+                      key={review.id}
+                      className="border-2 border-primary/30 bg-gradient-to-br from-card to-primary/5 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 hover:border-primary/50"
+                    >
+                      <CardHeader className="pb-4">
+                        <div className="flex items-start gap-3 mb-3">
+                          {review.isQuestion && review.sentiment === "negative" ? (
+                            <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                              <HelpCircle className="w-5 h-5 text-primary" />
+                            </div>
+                          ) : review.isQuestion ? (
+                            <div className="p-2 bg-orange-100 rounded-lg shrink-0">
+                              <HelpCircle className="w-5 h-5 text-orange-600" />
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-red-100 rounded-lg shrink-0">
+                              <ThumbsDown className="w-5 h-5 text-primary" />
+                            </div>
+                          )}
+                          <div className="flex flex-col gap-2 flex-1 min-w-0">
+                            <div className="flex flex-wrap gap-2">
+                              {review.isQuestion && (
+                                <Badge className="text-xs bg-orange-100 text-orange-800 border-orange-300 font-semibold">
+                                  Question
+                                </Badge>
+                              )}
+                              {review.sentiment === "negative" && (
+                                <Badge className="text-xs bg-red-100 text-primary border-primary/30 font-semibold">
+                                  Negative
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <MessageCircle className="w-4 h-4" />
-                          <span>{review.comments}</span>
-                        </div>
-                      </div>
+                        <CardTitle className="text-base font-bold text-foreground leading-tight line-clamp-2">
+                          {review.title}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">{review.summary}</p>
 
-                      <Button
-                        size="sm"
-                        className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
-                        asChild
-                      >
-                        <a href={review.redditUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="w-4 h-4 mr-1.5" />
-                          Respond
-                        </a>
-                      </Button>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{formatPostDate(review.createdAt)}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-3 border-t">
+                          <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <ArrowUp className="w-4 h-4" />
+                              <span>{review.upvotes}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <MessageCircle className="w-4 h-4" />
+                              <span>{review.comments}</span>
+                            </div>
+                          </div>
+
+                          <Button
+                            size="sm"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
+                            asChild
+                          >
+                            <a href={review.redditUrl} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="w-4 h-4 mr-1.5" />
+                              Respond
+                            </a>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {showActionablePagination && (
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActionablePage((prev) => Math.max(1, prev - 1))}
+                      disabled={actionablePage === 1}
+                      className="gap-2"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </Button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalActionablePages) }, (_, i) => {
+                        let pageNum
+                        if (totalActionablePages <= 5) {
+                          pageNum = i + 1
+                        } else if (actionablePage <= 3) {
+                          pageNum = i + 1
+                        } else if (actionablePage >= totalActionablePages - 2) {
+                          pageNum = totalActionablePages - 4 + i
+                        } else {
+                          pageNum = actionablePage - 2 + i
+                        }
+
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={actionablePage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setActionablePage(pageNum)}
+                            className="w-10"
+                          >
+                            {pageNum}
+                          </Button>
+                        )
+                      })}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setActionablePage((prev) => Math.min(totalActionablePages, prev + 1))}
+                      disabled={actionablePage === totalActionablePages}
+                      className="gap-2"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
 
@@ -470,7 +611,7 @@ export default function LenovoReviewsDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-foreground tracking-tight">Historical Analysis</h2>
-              <p className="text-muted-foreground mt-1">Filter reviews by date and category</p>
+              <p className="text-muted-foreground mt-1">Filter reviews by date</p>
             </div>
           </div>
 
@@ -484,12 +625,7 @@ export default function LenovoReviewsDashboard() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    initialFocus
-                  />
+                  <Calendar mode="single" selected={selectedDate} onSelect={handleDateSelect} initialFocus />
                 </PopoverContent>
               </Popover>
             </div>
@@ -508,86 +644,167 @@ export default function LenovoReviewsDashboard() {
               ))}
             </div>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <Button
-                key={category}
-                variant={activeCategory === category ? "default" : "outline"}
-                onClick={() => setActiveCategory(category)}
-                size="lg"
-                className="rounded-full font-medium"
-              >
-                {category}
-              </Button>
-            ))}
-          </div>
         </section>
 
-        <div className="flex items-center justify-between py-4 border-y">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4 border-y">
           <div>
             <h3 className="text-xl font-bold text-foreground">
               {filteredReviews.length} {filteredReviews.length === 1 ? "Review" : "Reviews"} Found
             </h3>
-            <p className="text-sm text-muted-foreground mt-1">{format(selectedDate, "MMMM d, yyyy")}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {showPagination
+                ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredReviews.length)} of ${filteredReviews.length}`
+                : format(selectedDate, "MMMM d, yyyy")}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Sort by:</span>
+              <div className="flex gap-2">
+                <Button
+                  variant={sortBy === "date" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSortBy("date")}
+                  className="font-medium"
+                >
+                  Date
+                </Button>
+                <Button
+                  variant={sortBy === "sentiment" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSortBy("sentiment")}
+                  className="font-medium"
+                >
+                  Sentiment
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+              className="gap-2 font-medium"
+            >
+              <ArrowUpDown className="w-4 h-4" />
+              {sortOrder === "asc" ? "Ascending" : "Descending"}
+            </Button>
           </div>
         </div>
 
         {filteredReviews.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
-            {filteredReviews.map((review) => (
-              <Card
-                key={review.id}
-                className={`${getSentimentStyles(review.sentiment)} border-2 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 ${review.isQuestion ? "ring-2 ring-orange-400" : ""}`}
-              >
-                <CardHeader className="pb-4">
-                  <div className="flex justify-between items-start gap-3">
-                    <CardTitle className="text-lg font-bold text-foreground leading-tight line-clamp-2">
-                      {review.title}
-                    </CardTitle>
-                    <div className="flex flex-col gap-2 shrink-0">
-                      <Badge variant="secondary" className="text-xs font-semibold whitespace-nowrap">
-                        {review.category}
-                      </Badge>
-                      {review.isQuestion && (
-                        <Badge className="text-xs bg-orange-100 text-orange-800 border-orange-300 font-semibold">
-                          Question
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-muted-foreground text-sm leading-relaxed line-clamp-3">{review.summary}</p>
-
-                  <div className="flex items-center justify-between pt-3 border-t">
-                    <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
-                      <div className="flex items-center gap-1.5">
-                        <ArrowUp className="w-4 h-4" />
-                        <span>{review.upvotes}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <MessageCircle className="w-4 h-4" />
-                        <span>{review.comments}</span>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
+              {paginatedReviews.map((review) => (
+                <Card
+                  key={review.id}
+                  className={`${getSentimentStyles(review.sentiment)} border-2 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 ${review.isQuestion ? "ring-2 ring-orange-400" : ""}`}
+                >
+                  <CardHeader className="pb-4">
+                    <div className="flex justify-between items-start gap-3">
+                      <CardTitle className="text-lg font-bold text-foreground leading-tight line-clamp-2">
+                        {review.title}
+                      </CardTitle>
+                      <div className="flex flex-col gap-2 shrink-0">
+                        {review.isQuestion && (
+                          <Badge className="text-xs bg-orange-100 text-orange-800 border-orange-300 font-semibold">
+                            Question
+                          </Badge>
+                        )}
                       </div>
                     </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-muted-foreground text-sm leading-relaxed line-clamp-3">{review.summary}</p>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-primary hover:text-primary-foreground hover:bg-primary font-medium"
-                      asChild
-                    >
-                      <a href={review.redditUrl} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="w-4 h-4 mr-1.5" />
-                        View
-                      </a>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{formatPostDate(review.createdAt)}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t">
+                      <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <ArrowUp className="w-4 h-4" />
+                          <span>{review.upvotes}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <MessageCircle className="w-4 h-4" />
+                          <span>{review.comments}</span>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-primary hover:text-primary-foreground hover:bg-primary font-medium"
+                        asChild
+                      >
+                        <a href={review.redditUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-4 h-4 mr-1.5" />
+                          View
+                        </a>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {showPagination && (
+              <div className="flex items-center justify-center gap-2 pb-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="gap-2"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </Button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className="w-10"
+                      >
+                        {pageNum}
+                      </Button>
+                    )
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="gap-2"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-16 space-y-4">
             <div className="mx-auto w-20 h-20 bg-muted rounded-2xl flex items-center justify-center">
