@@ -254,13 +254,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const forceRefresh = searchParams.get("refresh") === "true"
 
-    const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString()
-
     if (!forceRefresh) {
       const { data: cachedReviews, error: fetchError } = await supabase
         .from("reviews")
         .select("*")
-        .gte("fetched_at", oneHourAgo)
         .order("created_at", { ascending: false })
         .limit(990)
 
@@ -281,13 +278,14 @@ export async function GET(request: Request) {
           redditUrl: review.url,
           createdAt: review.created_at,
           subreddit: review.subreddit,
+          hasQuestion: review.has_question,
         }))
 
         return NextResponse.json({ reviews })
       }
     }
 
-    console.log("[v0] No recent cached data or force refresh requested, fetching from Reddit...")
+    console.log("[v0] No cached data or force refresh requested, fetching from Reddit...")
 
     const accessToken = await getRedditAccessToken()
 
